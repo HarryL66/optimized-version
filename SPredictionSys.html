@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>匀胶机参数优化可视化工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    
+    <!-- Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#165DFF',
+                        secondary: '#722ED1',
+                        accent: '#FF7D00',
+                        success: '#00B42A',
+                        warning: '#FF7D00',
+                        danger: '#F53F3F',
+                        dark: '#1D2129',
+                        light: '#F2F3F5'
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .card-shadow {
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            }
+            .transition-custom {
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+        }
+    </style>
+</head>
+<body class="font-inter bg-gray-50 text-dark min-h-screen flex flex-col">
+    <!-- 导航栏 -->
+    <nav class="bg-white shadow-md sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fa fa-cogs text-primary text-2xl"></i>
+                <h1 class="text-xl font-bold text-primary">匀胶机参数优化</h1>
+            </div>
+            <div class="flex items-center space-x-4">
+                <button id="helpBtn" class="text-gray-600 hover:text-primary transition-custom">
+                    <i class="fa fa-question-circle"></i>
+                    <span class="hidden md:inline ml-1">帮助</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主内容区 -->
+    <main class="flex-grow container mx-auto px-4 py-8">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- 左侧控制面板 -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-xl p-6 card-shadow">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fa fa-sliders text-primary mr-2"></i>参数设置
+                    </h2>
+                    
+                    <div class="space-y-6">
+                        <!-- 匀胶时间参数设置 -->
+                        <div>
+                            <label for="spinTime" class="block text-sm font-medium text-gray-700 mb-1">匀胶时间 (秒)</label>
+                            <div class="flex items-center">
+                                <input type="range" id="spinTimeSlider" min="20" max="40" step="0.5" value="30.0" 
+                                    class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary">
+                                <span id="spinTimeValue" class="ml-3 min-w-[40px] text-center font-medium">30.0</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 热烘时间参数设置 -->
+                        <div>
+                            <label for="bakeTime" class="block text-sm font-medium text-gray-700 mb-1">热烘时间 (秒)</label>
+                            <div class="flex items-center">
+                                <input type="range" id="bakeTimeSlider" min="60" max="120" step="1.0" value="90.0" 
+                                    class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary">
+                                <span id="bakeTimeValue" class="ml-3 min-w-[40px] text-center font-medium">90.0</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 算法参数设置 -->
+                        <div>
+                            <h3 class="text-md font-medium text-gray-700 mb-3">算法参数</h3>
+                            
+                            <div class="space-y-4">
+                                <div>
+                                    <label for="popSize" class="block text-sm text-gray-700 mb-1">种群大小</label>
+                                    <input type="number" id="popSize" value="100" min="10" max="500" step="10" 
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                                </div>
+                                
+                                <div>
+                                    <label for="maxGen" class="block text-sm text-gray-700 mb-1">最大迭代次数</label>
+                                    <input type="number" id="maxGen" value="200" min="10" max="1000" step="10" 
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 运行按钮 -->
+                        <button id="runBtn" class="w-full py-3 px-4 bg-primary text-white rounded-lg font-medium shadow-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-custom flex items-center justify-center">
+                            <i class="fa fa-play mr-2"></i>
+                            运行优化
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 优化结果 -->
+                <div class="mt-6 bg-white rounded-xl p-6 card-shadow">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fa fa-bar-chart text-primary mr-2"></i>优化结果
+                    </h2>
+                    
+                    <div id="results" class="space-y-4 opacity-0 transition-custom">
+                        <div class="p-4 bg-light rounded-lg">
+                            <h3 class="font-medium text-gray-700 mb-2">工序时间 (秒)</h3>
+                            <div class="grid grid-cols-2 gap-2 text-sm">
+                                <div><span class="text-gray-500">匀胶时间:</span> <span id="resultSpinTime" class="font-medium">30.00</span></div>
+                                <div><span class="text-gray-500">热烘时间:</span> <span id="resultBakeTime" class="font-medium">90.00</span></div>
+                                <div><span class="text-gray-500">晶圆出库:</span> <span id="resultT1" class="font-medium">5.00</span></div>
+                                <div><span class="text-gray-500">匀胶上料:</span> <span id="resultT2" class="font-medium">3.00</span></div>
+                                <div><span class="text-gray-500">匀胶下料:</span> <span id="resultT4" class="font-medium">3.00</span></div>
+                                <div><span class="text-gray-500">热烘上料:</span> <span id="resultT5" class="font-medium">3.00</span></div>
+                                <div><span class="text-gray-500">热烘下料:</span> <span id="resultT7" class="font-medium">3.00</span></div>
+                                <div><span class="text-gray-500">晶圆入库:</span> <span id="resultT8" class="font-medium">5.00</span></div>
+                            </div>
+                        </div>
+                        
+                        <div class="p-4 bg-light rounded-lg">
+                            <h3 class="font-medium text-gray-700 mb-2">机械手分配</h3>
+                            <div class="grid grid-cols-2 gap-2 text-sm">
+                                <div><span class="text-gray-500">晶圆出库:</span> <span id="robotT1" class="font-medium">机械手1</span></div>
+                                <div><span class="text-gray-500">匀胶上料:</span> <span id="robotT2" class="font-medium">机械手2</span></div>
+                                <div><span class="text-gray-500">匀胶下料:</span> <span id="robotT4" class="font-medium">机械手1</span></div>
+                                <div><span class="text-gray-500">热烘上料:</span> <span id="robotT5" class="font-medium">机械手2</span></div>
+                                <div><span class="text-gray-500">热烘下料:</span> <span id="robotT7" class="font-medium">机械手1</span></div>
+                                <div><span class="text-gray-500">晶圆入库:</span> <span id="robotT8" class="font-medium">机械手2</span></div>
+                            </div>
+                        </div>
+                        
+                        <div class="p-4 bg-light rounded-lg">
+                            <h3 class="font-medium text-gray-700 mb-2">性能指标</h3>
+                            <div class="space-y-2 text-sm">
+                                <div><span class="text-gray-500">总周期时间:</span> <span id="makespan" class="font-medium">85.00</span> 秒</div>
+                                <div><span class="text-gray-500">并行度:</span> <span id="parallelism" class="font-medium">1.85</span></div>
+                                <div><span class="text-gray-500">机械手1空闲时间:</span> <span id="robot1Idle" class="font-medium">35.00</span> 秒</div>
+                                <div><span class="text-gray-500">机械手2空闲时间:</span> <span id="robot2Idle" class="font-medium">30.00</span> 秒</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="loading" class="hidden flex flex-col items-center justify-center py-8">
+                        <div class="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mb-4"></div>
+                        <p class="text-gray-600">正在优化中...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 右侧图表区域 -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- 收敛曲线图表 -->
+                <div class="bg-white rounded-xl p-6 card-shadow">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fa fa-line-chart text-primary mr-2"></i>算法收敛曲线
+                    </h2>
+                    <div class="h-80">
+                        <canvas id="convergenceChart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- 甘特图 -->
+                <div class="bg-white rounded-xl p-6 card-shadow">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fa fa-tasks text-primary mr-2"></i>工序甘特图
+                    </h2>
+                    <div class="h-80">
+                        <canvas id="ganttChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-white border-t border-gray-200 py-4">
+        <div class="container mx-auto px-4 text-center text-gray-500 text-sm">
+            <p>© 2025 匀胶机参数优化可视化工具 | 使用遗传算法优化工艺流程</p>
+        </div>
+    </footer>
+
+    <!-- 帮助模态框 -->
+    <div id="helpModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl p-6 max-w-lg w-full mx-4">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-primary">使用帮助</h3>
+                <button id="closeHelpBtn" class="text-gray-500 hover:text-gray-700">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+            <div class="space-y-4 text-gray-700">
+                <p><strong>参数设置:</strong> 调整匀胶时间和热烘时间参数，这些值将影响整个工艺流程。</p>
+                <p><strong>算法参数:</strong> 可以调整种群大小和最大迭代次数来控制遗传算法的性能。</p>
+                <p><strong>运行优化:</strong> 点击"运行优化"按钮开始算法优化过程，优化结果将显示在左侧面板。</p>
+                <p><strong>图表分析:</strong> 收敛曲线展示了算法迭代过程中的性能变化，甘特图显示了各工序的时间安排和机械手分配。</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 初始化Chart.js图表
+        let convergenceChart, ganttChart;
+        
+        // 帮助模态框控制
+        document.getElementById('helpBtn').addEventListener('click', () => {
+            document.getElementById('helpModal').classList.remove('hidden');
+        });
+        
+        document.getElementById('closeHelpBtn').addEventListener('click', () => {
+            document.getElementById('helpModal').classList.add('hidden');
+        });
+        
+        // 滑块值实时更新
+        document.getElementById('spinTimeSlider').addEventListener('input', function() {
+            document.getElementById('spinTimeValue').textContent = this.value;
+        });
+        
+        document.getElementById('bakeTimeSlider').addEventListener('input', function() {
+            document.getElementById('bakeTimeValue').textContent = this.value;
+        });
+        
+        // 运行按钮点击事件
+        document.getElementById('runBtn').addEventListener('click', function() {
+            // 显示加载状态
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('results').classList.add('opacity-0');
+            
+            // 模拟算法运行（实际应用中这里会调用遗传算法）
+            setTimeout(() => {
+                // 获取参数值
+                const spinTime = parseFloat(document.getElementById('spinTimeSlider').value);
+                const bakeTime = parseFloat(document.getElementById('bakeTimeSlider').value);
+                const popSize = parseInt(document.getElementById('popSize').value);
+                const maxGen = parseInt(document.getElementById('maxGen').value);
+                
+                // 模拟优化结果
+                const results = simulateOptimization(spinTime, bakeTime, popSize, maxGen);
+                
+                // 更新结果显示
+                updateResults(results);
+                
+                // 隐藏加载状态
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('results').classList.remove('opacity-0');
+                
+                // 更新图表
+                updateCharts(results);
+            }, 1500); // 模拟1.5秒的计算时间
+        });
+        
+        // 模拟优化结果（实际应用中会替换为真实的遗传算法）
+        function simulateOptimization(spinTime, bakeTime, popSize, maxGen) {
+            // 基于spinTime和bakeTime计算其他工序时间
+            const t1 = 5;  // 晶圆出库
+            const t2 = 3;  // 匀胶上料
+            const t4 = 3;  // 匀胶下料
+            const t5 = 3;  // 热烘上料
+            const t7 = 3;  // 热烘下料
+            const t8 = 5;  // 晶圆入库
+            
+            // 计算总周期时间（简化模拟）
+            const makespan = t1 + t2 + spinTime + Math.max(t4, t5) + bakeTime + Math.max(t7, t8);
+            
+            // 计算并行度
+            const totalWorkingTime = t1 + t2 + spinTime + t4 + t5 + bakeTime + t7 + t8;
+            const parallelism = totalWorkingTime / makespan;
+            
+            // 模拟机械手分配
+            const robotAssignments = {
+                t1: Math.random() > 0.5 ? 0 : 1,
+                t2: Math.random() > 0.5 ? 0 : 1,
+                t4: Math.random() > 0.5 ? 0 : 1,
+                t5: Math.random() > 0.5 ? 0 : 1,
+                t7: Math.random() > 0.5 ? 0 : 1,
+                t8: Math.random() > 0.5 ? 0 : 1
+            };
+            
+            // 计算机械手空闲时间
+            const robot1Tasks = [
+                robotAssignments.t1 ? t1 : 0,
+                robotAssignments.t2 ? t2 : 0,
+                robotAssignments.t4 ? t4 : 0,
+                robotAssignments.t5 ? t5 : 0,
+                robotAssignments.t7 ? t7 : 0,
+                robotAssignments.t8 ? t8 : 0
+            ];
+            
+            const robot2Tasks = [
+                robotAssignments.t1 ? 0 : t1,
+                robotAssignments.t2 ? 0 : t2,
+                robotAssignments.t4 ? 0 : t4,
+                robotAssignments.t5 ? 0 : t5,
+                robotAssignments.t7 ? 0 : t7,
+                robotAssignments.t8 ? 0 : t8
+            ];
+            
+            const robot1WorkingTime = robot1Tasks.reduce((a, b) => a + b, 0);
+            const robot2WorkingTime = robot2Tasks.reduce((a, b) => a + b, 0);
+            const robot1Idle = makespan - robot1WorkingTime;
+            const robot2Idle = makespan - robot2WorkingTime;
+            
+            // 模拟收敛历史
+            const bestFitnessHistory = [];
+            const avgFitnessHistory = [];
+            const bestMakespan = [];
+            const avgMakespan = [];
+            
+            for (let i = 0; i < maxGen; i++) {
+                // 模拟收敛过程
+                const progress = i / maxGen;
+                const noise = Math.random() * 0.1 * (1 - progress);
+                
+                bestFitnessHistory.push(0.8 + 0.2 * progress + noise);
+                avgFitnessHistory.push(0.6 + 0.3 * progress + noise);
+                
+                bestMakespan.push(makespan - (makespan - 30) * progress - noise * 20);
+                avgMakespan.push(makespan - (makespan - 40) * progress - noise * 30);
+            }
+            
+            return {
+                times: { spinTime, bakeTime, t1, t2, t4, t5, t7, t8 },
+                robot_assignments: robotAssignments,
+                metrics: {
+                    makespan,
+                    parallelism,
+                    robot1_idle: robot1Idle,
+                    robot2_idle: robot2Idle
+                },
+                history: {
+                    best_fitness: bestFitnessHistory,
+                    avg_fitness: avgFitnessHistory,
+                    best_makespan: bestMakespan,
+                    avg_makespan: avgMakespan
+                }
+            };
+        }
+        
+        // 更新结果显示
+        function updateResults(results) {
+            document.getElementById('resultSpinTime').textContent = results.times.spinTime.toFixed(2);
+            document.getElementById('resultBakeTime').textContent = results.times.bakeTime.toFixed(2);
+            document.getElementById('resultT1').textContent = results.times.t1.toFixed(2);
+            document.getElementById('resultT2').textContent = results.times.t2.toFixed(2);
+            document.getElementById('resultT4').textContent = results.times.t4.toFixed(2);
+            document.getElementById('resultT5').textContent = results.times.t5.toFixed(2);
+            document.getElementById('resultT7').textContent = results.times.t7.toFixed(2);
+            document.getElementById('resultT8').textContent = results.times.t8.toFixed(2);
+            
+            document.getElementById('robotT1').textContent = `机械手${results.robot_assignments.t1 + 1}`;
+            document.getElementById('robotT2').textContent = `机械手${results.robot_assignments.t2 + 1}`;
+            document.getElementById('robotT4').textContent = `机械手${results.robot_assignments.t4 + 1}`;
+            document.getElementById('robotT5').textContent = `机械手${results.robot_assignments.t5 + 1}`;
+            document.getElementById('robotT7').textContent = `机械手${results.robot_assignments.t7 + 1}`;
+            document.getElementById('robotT8').textContent = `机械手${results.robot_assignments.t8 + 1}`;
+            
+            document.getElementById('makespan').textContent = results.metrics.makespan.toFixed(2);
+            document.getElementById('parallelism').textContent = results.metrics.parallelism.toFixed(2);
+            document.getElementById('robot1Idle').textContent = results.metrics.robot1_idle.toFixed(2);
+            document.getElementById('robot2Idle').textContent = results.metrics.robot2_idle.toFixed(2);
+        }
+        
+        // 更新图表
+        function updateCharts(results) {
+            // 收敛曲线图表
+            if (!convergenceChart) {
+                const ctx = document.getElementById('convergenceChart').getContext('2d');
+                convergenceChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: Array.from({length: results.history.best_fitness.length}, (_, i) => i + 1),
+                        datasets: [
+                            {
+                                label: '最优适应度',
+                                data: results.history.best_fitness,
+                                borderColor: '#165DFF',
+                                backgroundColor: 'rgba(22, 93, 255, 0.1)',
+                                tension: 0.4,
+                                fill: false
+                            },
+                            {
+                                label: '平均适应度',
+                                data: results.history.avg_fitness,
+                                borderColor: '#722ED1',
+                                backgroundColor: 'rgba(114, 46, 209, 0.1)',
+                                tension: 0.4,
+                                fill: false
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                            },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                            }
+                        },
+                        scales: {
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: '迭代次数'
+                                }
+                            },
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: '适应度'
+                                }
+                            }
+                        }
+                    }
+                });
+            } else {
+                convergenceChart.data.datasets[0].data = results.history.best_fitness;
+                convergenceChart.data.datasets[1].data = results.history.avg_fitness;
+                convergenceChart.data.labels = Array.from({length: results.history.best_fitness.length}, (_, i) => i + 1);
+                convergenceChart.update();
+            }
+            
+            // 甘特图
+            if (!ganttChart) {
+                const ctx = document.getElementById('ganttChart').getContext('2d');
+                
+                // 计算各工序的开始和结束时间
+                const times = results.times;
+                const t1 = 0;
+                const t2 = t1 + times.t1;
+                const t3 = t2 + times.t2;
+                const t4 = t3 + times.spinTime;
+                const t5 = Math.max(t4 + times.t4, t2 + times.t2);
+                const t6 = t5 + times.t5;
+                const t7 = t6 + times.bakeTime;
+                const t8 = Math.max(t7 + times.t7, t4 + times.t4);
+                
+                ganttChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['晶圆出库', '匀胶上料', '匀胶旋涂', '匀胶下料', '热烘上料', '热烘固化', '热烘下料', '晶圆入库'],
+                        datasets: [
+                            {
+                                label: '开始时间',
+                                data: [t1, t2, t3, t4, t5, t6, t7, t8],
+                                backgroundColor: 'rgba(22, 93, 255, 0.2)',
+                                borderColor: 'rgba(22, 93, 255, 1)',
+                                borderWidth: 1,
+                                categoryPercentage: 0.8,
+                                barPercentage: 0.6
+                            },
+                            {
+                                label: '持续时间',
+                                data: [times.t1, times.t2, times.spinTime, times.t4, times.t5, times.bakeTime, times.t7, times.t8],
+                                backgroundColor: [
+                                    results.robot_assignments.t1 === 0 ? 'rgba(22, 93, 255, 0.8)' : 'rgba(114, 46, 209, 0.8)',
+                                    results.robot_assignments.t2 === 0 ? 'rgba(22, 93, 255, 0.8)' : 'rgba(114, 46, 209, 0.8)',
+                                    'rgba(255, 125, 0, 0.8)', // 匀胶旋涂固定颜色
+                                    results.robot_assignments.t4 === 0 ? 'rgba(22, 93, 255, 0.8)' : 'rgba(114, 46, 209, 0.8)',
+                                    results.robot_assignments.t5 === 0 ? 'rgba(22, 93, 255, 0.8)' : 'rgba(114, 46, 209, 0.8)',
+                                    'rgba(0, 180, 42, 0.8)', // 热烘固化固定颜色
+                                    results.robot_assignments.t7 === 0 ? 'rgba(22, 93, 255, 0.8)' : 'rgba(114, 46, 209, 0.8)',
+                                    results.robot_assignments.t8 === 0 ? 'rgba(22, 93, 255, 0.8)' : 'rgba(114, 46, 209, 0.8)'
+                                ],
+                                borderWidth: 0,
+                                categoryPercentage: 0.8,
+                                barPercentage: 0.6
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        indexAxis: 'y', // 水平条形图
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.dataset.label || '';
+                                        const value = context.raw;
+                                        const index = context.dataIndex;
+                                        
+                                        if (label === '开始时间') {
+                                            return `${label}: ${value.toFixed(2)}s`;
+                                        } else if (label === '持续时间') {
+                                            const工序 = ['晶圆出库', '匀胶上料', '匀胶旋涂', '匀胶下料', '热烘上料', '热烘固化', '热烘下料', '晶圆入库'][index];
+                                            const工序英文名 = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8'][index];
+                                            const robot = ['T1', 'T2', 'T4', 'T5', 'T7', 'T8'].includes(工序英文名) 
+                                                ? ` (机械手${results.robot_assignments[工序英文名.toLowerCase()] + 1})` 
+                                                : '';
+                                            return `${工序}${robot}: ${value.toFixed(2)}s`;
+                                        }
+                                        return `${label}: ${value}`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: '时间 (秒)'
+                                }
+                            },
+                            y: {
+                                stacked: true,
+                                grid: {
+                                    display: false
+                                }
+                            }
+                        },
+                        barPercentage: 0.6,
+                        categoryPercentage: 0.8
+                    }
+                });
+            } else {
+                // 更新甘特图数据
+                const times = results.times;
+                const t1 = 0;
+                const t2 = t1 + times.t1;
+                const t3 = t2 + times.t2;
+                const t4 = t3 + times.spinTime;
+                const t5 = Math.max(t4 + times.t4, t2 + times.t2);
+                const t6 = t5 + times.t5;
+                const t7 = t6 + times.bakeTime;
+                const t8 = Math.max(t7 + times.t7, t4 + times.t4);
+                
+                ganttChart.data.datasets[0].data = [t1, t2, t3, t4, t5, t6, t7, t8];
+                ganttChart.data.datasets[1].data = [times.t1, times.t2, times.spinTime, times.t4, times.t5, times.bakeTime, times.t7, times.t8];
+                
+                // 更新颜色（反映机械手分配）
+                ganttChart.data.datasets[1].backgroundColor = [
+                    results.robot_assignments.t1 === 0 ? 'rgba(22, 93, 255, 0.8)' : 'rgba(114, 46, 209, 0.8)',
+                    results.robot_assignments.t2 === 0 ? 'rgba(22, 93, 255, 0.8)' : 'rgba(114, 46, 209, 0.8)',
+                    'rgba(255, 125, 0, 0.8)', // 匀胶旋涂固定颜色
+                    results.robot_assignments.t4 === 0 ? 'rgba(22, 93, 255, 0.8)' : 'rgba(114, 46, 209, 0.8)',
+                    results.robot_assignments.t5 === 0 ? 'rgba(22, 93, 255, 0.8)' : 'rgba(114, 46, 209, 0.8)',
+                    'rgba(0, 180, 42, 0.8)', // 热烘固化固定颜色
+                    results.robot_assignments.t7 === 0 ? 'rgba(22, 93, 255, 0.8)' : 'rgba(114, 46, 209, 0.8)',
+                    results.robot_assignments.t8 === 0 ? 'rgba(22, 93, 255, 0.8)' : 'rgba(114, 46, 209, 0.8)'
+                ];
+                
+                ganttChart.update();
+            }
+        }
+        
+        // 页面加载时初始化图表
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化滑块显示
+            document.getElementById('spinTimeValue').textContent = document.getElementById('spinTimeSlider').value;
+            document.getElementById('bakeTimeValue').textContent = document.getElementById('bakeTimeSlider').value;
+            
+            // 初始模拟运行
+            document.getElementById('runBtn').click();
+        });
+    </script>
+</body>
+</html>    
